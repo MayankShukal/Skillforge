@@ -1,0 +1,126 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+model User {
+  id              String   @id @default(uuid())
+  name            String
+  email           String   @unique
+  passwordHash    String?
+  college         String?
+  degree          String?
+  branch          String?
+  graduation_year Int?
+  career_goal     String?
+  skills          Skill[]
+  resumes         Resume[]
+  projects        Project[]
+  roadmaps        Roadmap[]
+  interviews      Interview[]
+  progress        Progress[]
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+model Skill {
+  id         String   @id @default(uuid())
+  user_id    String
+  user       User     @relation(fields: [user_id], references: [id])
+  skill_name String
+  category   String?  // Technical, Soft
+  level      String   // Beginner, Intermediate, Advanced
+  source     String?  // resume, manual, assessed
+  score      Int?
+}
+
+model Resume {
+  id             String   @id @default(uuid())
+  user_id        String
+  user           User     @relation(fields: [user_id], references: [id])
+  file_url       String?
+  extracted_text String?
+  resume_score   Int?
+  createdAt      DateTime @default(now())
+}
+
+model Project {
+  id           String   @id @default(uuid())
+  user_id      String
+  user         User     @relation(fields: [user_id], references: [id])
+  title        String
+  description  String
+  technologies String
+  status       String   // e.g. "To Do", "In Progress", "Completed"
+  progress     Int      @default(0)
+}
+
+model Course {
+  id         String   @id @default(uuid())
+  title      String
+  provider   String
+  skill      String
+  difficulty String
+  url        String?
+  videoUrl   String?
+}
+
+model Roadmap {
+  id          String   @id @default(uuid())
+  user_id     String
+  user        User     @relation(fields: [user_id], references: [id])
+  target_role String
+  phasesJson  String?  // Store the LLM structured roadmap
+  progress    Int      @default(0)
+  tasks       RoadmapTask[]
+}
+
+model RoadmapTask {
+  id          String   @id @default(uuid())
+  roadmap_id  String
+  roadmap     Roadmap  @relation(fields: [roadmap_id], references: [id])
+  title       String
+  description String
+  type        String?  // course, project, cert, interview
+  dueEstimate String?
+  duration    String
+  status      String   // e.g. "Pending", "In Progress", "Completed"
+}
+
+model Interview {
+  id      String   @id @default(uuid())
+  user_id String
+  user    User     @relation(fields: [user_id], references: [id])
+  type    String
+  score   Int
+  date    DateTime @default(now())
+}
+
+model InterviewQuestion {
+  id         String   @id @default(uuid())
+  role       String?
+  type       String?  // technical, behavioral
+  category   String
+  difficulty String
+  question   String
+  answer     String
+}
+
+model Progress {
+  id            String   @id @default(uuid())
+  user_id       String
+  user          User     @relation(fields: [user_id], references: [id])
+  roadmapItemId String?
+  skill         String
+  progress      Int      @default(0)
+  updated_at    DateTime @updatedAt
+}
+
+

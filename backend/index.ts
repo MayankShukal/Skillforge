@@ -15,6 +15,47 @@ const cors = require('cors');
 const JWT_SECRET = process.env.JWT_SECRET || 'super-secret-key-for-hackathon';
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY || 'dummy' });
 
+async function callGemini(systemInstruction: string, prompt: string): Promise<string | null> {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey || apiKey === 'dummy' || apiKey.trim() === '') return null;
+
+  const models = ['gemini-2.5-flash', 'gemini-1.5-flash', 'gemini-2.0-flash'];
+
+  for (const model of models) {
+    try {
+      const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          systemInstruction: {
+            parts: [{ text: systemInstruction }]
+          },
+          contents: [
+            {
+              role: 'user',
+              parts: [{ text: prompt }]
+            }
+          ]
+        })
+      });
+
+      if (res.ok) {
+        const data: any = await res.json();
+        const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+        if (text) return text;
+      } else {
+        const errText = await res.text();
+        console.error(`Gemini API error (${model}):`, res.status, errText);
+      }
+    } catch (err) {
+      console.error(`Failed to call Gemini API (${model}):`, err);
+    }
+  }
+
+  return null;
+}
+
+
 const uploadDir = path.join(__dirname, 'uploads');
 if (!fs.existsSync(uploadDir)) {
   fs.mkdirSync(uploadDir);
@@ -138,6 +179,34 @@ app.post('/api/onboarding', async (req, res) => {
     res.status(500).json({ error: "Failed to update profile." });
   }
 });
+
+app.put('/api/user/:id', async (req, res) => {
+  const { id } = req.params;
+  const { name, career_goal, college, degree, branch, graduation_year } = req.body;
+  if (!id || !isValidObjectId(id)) {
+    return res.status(400).json({ error: "Invalid user ID" });
+  }
+
+  try {
+    const updatedUser = await prisma.user.update({
+      where: { id },
+      data: {
+        name: name !== undefined ? name : undefined,
+        career_goal: career_goal !== undefined ? career_goal : undefined,
+        college: college !== undefined ? college : undefined,
+        degree: degree !== undefined ? degree : undefined,
+        branch: branch !== undefined ? branch : undefined,
+        graduation_year: graduation_year !== undefined ? (graduation_year ? parseInt(graduation_year, 10) : null) : undefined,
+      },
+      include: userInclude
+    });
+    res.json(updatedUser);
+  } catch (error) {
+    console.error("Update profile error:", error);
+    res.status(500).json({ error: "Failed to update profile." });
+  }
+});
+
 
 app.post('/api/resume/upload', upload.single('resume'), async (req, res) => {
   try {
@@ -643,6 +712,64 @@ app.post('/api/interview/record', async (req, res) => {
   }
 });
 
+function generateDynamicMentorResponse(user: any, message: string, page?: string): string {
+  const firstName = user.name ? user.name.split(' ')[0] : 'there';
+  const role = user.career_goal || 'Software Engineer';
+  const skillsList = user.skills?.map((s: any) => s.skill_name).join(', ') || 'general core skills';
+  const activeRoadmap = user.roadmaps?.[0];
+  const nextTask = activeRoadmap?.tasks?.find((t: any) => t.status !== 'Completed');
+  const lower = message.toLowerCase().trim();
+
+  // Greetings
+  if (/^(hi|hello|hey|greetings|good morning|good evening)/i.test(lower)) {
+    return `Hello ${firstName}! I'm your AI Career Mentor. I see your target role is ${role}. How can I assist your prep today? You can ask me for study recommendations, project ideas, or interview prep advice.`;
+  }
+
+  // Next steps / Roadmap questions
+  if (lower.includes('next') || lower.includes('roadmap') || lower.includes('what should i do') || lower.includes('what to study')) {
+    if (nextTask) {
+      return `Based on your ${role} roadmap, here is your immediate focus:\n• **Current Task:** ${nextTask.title}\n• **Description:** ${nextTask.description}\n• **Estimated Time:** ${nextTask.duration}\n\n👉 **Action Step:** Work on this task for your next study session and mark it complete on your Career Roadmap tab.`;
+    }
+    return `You're targeting **${role}**. Here is your recommended path:\n1. Head over to the **Career Roadmap** tab to generate your custom step-by-step roadmap.\n2. Ensure your top skills (${skillsList}) are up to date under **My Skills**.\n3. Start with a core foundational project!`;
+  }
+
+  // Skills / Improvement
+  if (lower.includes('skill') || lower.includes('improve') || lower.includes('gap') || lower.includes('weak')) {
+    const sorted = [...(user.skills || [])].sort((a: any, b: any) => (a.score || 50) - (b.score || 50));
+    const weakest = sorted[0];
+    if (weakest) {
+      return `Analyzing your profile for **${role}**:\n• **Key Focus Area:** ${weakest.skill_name} (${weakest.level || 'Beginner'})\n• **Recommendation:** Spend 3-4 days building a mini-project that specifically utilizes ${weakest.skill_name}.\n• **Next Action:** Check out recommended courses in the **Courses** tab tailored to ${weakest.skill_name}.`;
+    }
+    return `To boost your career readiness score for **${role}**:\n• Add your technical skills in **My Skills**.\n• Upload your resume in **Resume Analysis** to automatically extract verified skills.`;
+  }
+
+  // Interview preparation
+  if (lower.includes('interview') || lower.includes('prepare') || lower.includes('mock') || lower.includes('question')) {
+    return `Here is your quick Interview Prep strategy for **${role}**:\n• **Technical:** Practice core algorithms and practical architecture scenarios.\n• **Behavioral:** Prepare 3 STAR-format stories (Situation, Task, Action, Result) highlighting problem solving.\n• **Action Item:** Jump into the **Interview Prep** tab on the left sidebar to practice mock interview questions.`;
+  }
+
+  // Resume guidance
+  if (lower.includes('resume') || lower.includes('cv') || lower.includes('project')) {
+    return `To make your resume stand out for **${role}** positions:\n• Highlight hands-on projects with measurable outcomes (e.g. 'Improved speed by 40%').\n• Include key technologies: ${skillsList}.\n• **Action Step:** Upload your latest PDF resume under **Resume Analysis** for an instant ATS breakdown and score!`;
+  }
+
+  // Specific domain / topic questions
+  if (lower.includes('react') || lower.includes('frontend') || lower.includes('ui') || lower.includes('css')) {
+    return `For Frontend & React mastery targeting **${role}**:\n• Focus on component lifecycle, custom hooks, and state management (Zustand/Redux).\n• Build responsive UI layouts with TailwindCSS.\n• Practice building real API-driven web applications.`;
+  }
+
+  if (lower.includes('backend') || lower.includes('node') || lower.includes('express') || lower.includes('database') || lower.includes('sql') || lower.includes('api')) {
+    return `For Backend development targeting **${role}**:\n• Master RESTful API design, middleware, and request validation.\n• Gain strong database hands-on practice (Prisma ORM with SQLite/PostgreSQL/MongoDB).\n• Learn authentication patterns (JWT, bcrypt, session cookies).`;
+  }
+
+  if (lower.includes('python') || lower.includes('ai') || lower.includes('ml') || lower.includes('data')) {
+    return `For AI/Data Engineering targeting **${role}**:\n• Master Python fundamentals, Pandas, and NumPy for data manipulation.\n• Learn how to integrate LLM APIs and prompt engineering into applications.\n• Build an end-to-end data pipeline or AI assistant application.`;
+  }
+
+  // Generic intelligent response tailored to user query
+  return `Great question regarding "${message}"! As your AI Career Mentor for **${role}**:\n\n• **Advice:** Align your study directly with practical building. Theory plus hands-on execution is the fastest way to placement readiness.\n• **Current Status:** You have ${user.skills?.length || 0} active skills listed and ${user.projects?.length || 0} projects in progress.\n• **Next Step:** ${nextTask ? `Focus on completing '${nextTask.title}'` : 'Generate your target role roadmap in the Career Roadmap tab'}. Let me know if you need specific learning resources!`;
+}
+
 app.post('/api/chat', async (req, res) => {
   const { userId, message, page } = req.body;
   if (!userId || !isValidObjectId(userId)) {
@@ -666,17 +793,30 @@ app.post('/api/chat', async (req, res) => {
       return res.status(404).json({ error: "User not found" });
     }
 
+    const activeRoadmap = user.roadmaps[0];
+    const roadmapContext = activeRoadmap?.tasks
+      ?.map(t => `${t.title} [${t.status}]`)
+      .join('; ') || 'No roadmap generated yet';
+    const systemPrompt = `You are an AI career mentor for ${user.name}. Target role: ${user.career_goal || 'not set'}. Current skills: ${user.skills.map(s=>`${s.skill_name} (${s.level})`).join(', ') || 'none yet'}. Roadmap: ${roadmapContext}. Current app page: ${page || 'unknown'}. Give concise, practical advice with 2-4 bullet points and one immediate next action.`;
+
+    if (process.env.GEMINI_API_KEY && process.env.GEMINI_API_KEY !== 'dummy' && process.env.GEMINI_API_KEY.trim() !== '') {
+      try {
+        const geminiReply = await callGemini(systemPrompt, message);
+        if (geminiReply) {
+          return res.json({ message: geminiReply });
+        }
+      } catch (e) {
+        console.error("Gemini AI Chat Error:", e);
+      }
+    }
+
     if (process.env.OPENAI_API_KEY && process.env.OPENAI_API_KEY !== 'dummy') {
       try {
-        const activeRoadmap = user.roadmaps[0];
-        const roadmapContext = activeRoadmap?.tasks
-          ?.map(t => `${t.title} [${t.status}]`)
-          .join('; ') || 'No roadmap generated yet';
         const response = await openai.chat.completions.create({
           model: "gpt-3.5-turbo",
           messages: [{
             role: "system",
-            content: `You are an AI career mentor for ${user.name}. Target role: ${user.career_goal || 'not set'}. Current skills: ${user.skills.map(s=>`${s.skill_name} (${s.level})`).join(', ') || 'none yet'}. Roadmap: ${roadmapContext}. Current app page: ${page || 'unknown'}. Give concise, practical advice with 2-4 bullet points and one immediate next action.`
+            content: systemPrompt
           }, {
             role: "user",
             content: message
@@ -688,43 +828,15 @@ app.post('/api/chat', async (req, res) => {
       }
     }
 
-    // Fallback response based on keywords
-    const activeRoadmap = user.roadmaps[0];
-    const nextTask = activeRoadmap?.tasks.find(t => t.status !== 'Completed');
-    const weakestSkill = [...user.skills].sort((a, b) => (a.score || 50) - (b.score || 50))[0];
-    let response = "I'm running in offline mentor mode. Generate your roadmap, add your skills, and I can still guide your next action from your saved profile.";
-    const lowerMessage = message.toLowerCase();
-    
-    if (lowerMessage.includes('next') || lowerMessage.includes('roadmap') || lowerMessage.includes('what should')) {
-      response = nextTask
-        ? `Your next roadmap move is: ${nextTask.title}. Spend ${nextTask.duration || 'a focused session'} on it, then mark it complete so your progress updates.`
-        : `You do not have an active roadmap yet. Go to Career Roadmap, enter your target role, and generate a plan first.`;
-    } else if (lowerMessage.includes('skill') || lowerMessage.includes('improve')) {
-      response = weakestSkill
-        ? `Improve ${weakestSkill.skill_name} first. It is currently your lowest scored skill, so one course plus one small project will raise your readiness fastest.`
-        : `Add your current skills in My Skills first. Once I can see your skill list, I can tell you what to improve next.`;
-    } else if (lowerMessage.includes('7 day') || lowerMessage.includes('week') || lowerMessage.includes('study plan')) {
-      response = nextTask
-        ? `7 day plan: Days 1-2 learn the basics for "${nextTask.title}", Days 3-4 practice with exercises, Days 5-6 build a small proof project, Day 7 revise and mark the roadmap task complete.`
-        : `7 day plan: Day 1 set your target role, Day 2 add skills, Day 3 upload resume, Day 4 generate roadmap, Days 5-6 complete the first task, Day 7 do one mock interview.`;
-    } else if (lowerMessage.includes('react') || lowerMessage.includes('frontend')) {
-      response = "Frontend development is crucial! Make sure you understand state management and component lifecycles deeply.";
-    } else if (lowerMessage.includes('backend') || lowerMessage.includes('node') || lowerMessage.includes('python')) {
-      response = "For backend roles, focus on building robust APIs, understanding databases (SQL/NoSQL), and system design principles.";
-    } else if (lowerMessage.includes('interview')) {
-      response = "To prepare for interviews, practice coding problems, and use the STAR method for behavioral questions.";
-    } else if (lowerMessage.includes('hello') || lowerMessage.includes('hi')) {
-      response = `Hello ${user.name.split(' ')[0]}! What are we focusing on today?`;
-    } else if (lowerMessage.includes('dsa') || lowerMessage.includes('dssa') || lowerMessage.includes('algorithm') || lowerMessage.includes('data structure')) {
-      response = "Data Structures and Algorithms (DSA) are foundational. Start with basic arrays and strings, then move to trees, graphs, and dynamic programming.";
-    }
-    
-    res.json({ message: response });
+    // Fallback dynamic AI mentor generator if API key is not present or API call fails
+    const response = generateDynamicMentorResponse(user, message, page);
+    return res.json({ message: response });
   } catch (error) {
     console.error("Chat error:", error);
     res.status(500).json({ error: "Failed to process chat message." });
   }
 });
+
 
 // Basic health check
 app.get('/health', (req, res) => {

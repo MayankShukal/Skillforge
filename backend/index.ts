@@ -531,15 +531,35 @@ app.get('/api/courses/recommended', async (req, res) => {
     const { userId } = req.query;
     let courses = await prisma.course.findMany();
 
-    // If userId provided, optionally filter based on skills
     if (userId && typeof userId === 'string' && isValidObjectId(userId)) {
       const user = await prisma.user.findUnique({ where: { id: userId }, include: { skills: true } });
-      if (user && user.skills.length > 0) {
-        const userSkills = user.skills.map(s => s.skill_name.toLowerCase());
-        const matching = courses.filter(c => userSkills.includes(c.skill.toLowerCase()));
-        if (matching.length > 0) {
-          courses = matching;
-        }
+      if (user) {
+        const userSkillsMap = new Map<string, number>();
+        user.skills.forEach(s => userSkillsMap.set(s.skill_name.toLowerCase(), s.score ?? 50));
+
+        const enrichedCourses = courses.map(c => {
+          const lowerSkill = c.skill.toLowerCase();
+          const isMatch = userSkillsMap.has(lowerSkill);
+          const score = isMatch ? userSkillsMap.get(lowerSkill)! : null;
+          const isGap = isMatch && (score === null || score < 50);
+          return {
+            ...c,
+            isUserSkillMatch: isMatch,
+            userSkillScore: score,
+            isSkillGap: isGap
+          };
+        });
+
+        // Sort: Skill gaps first, then matching skills, then others
+        enrichedCourses.sort((a, b) => {
+          if (a.isSkillGap && !b.isSkillGap) return -1;
+          if (!a.isSkillGap && b.isSkillGap) return 1;
+          if (a.isUserSkillMatch && !b.isUserSkillMatch) return -1;
+          if (!a.isUserSkillMatch && b.isUserSkillMatch) return 1;
+          return 0;
+        });
+
+        return res.json(enrichedCourses);
       }
     }
 

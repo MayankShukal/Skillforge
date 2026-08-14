@@ -66,16 +66,31 @@ export default function DashboardOverview() {
     }
   };
 
-  const getEmbedUrl = (url?: string) => {
-    if (!url) return 'https://www.youtube.com/embed/17m0Iev3Pzw?autoplay=1';
-    if (url.includes('youtube.com/embed/')) {
-      return url.includes('?') ? `${url}&autoplay=1` : `${url}?autoplay=1`;
+  const defaultVideos = [
+    'https://www.youtube.com/watch?v=17m0Iev3Pzw',
+    'https://www.youtube.com/watch?v=HXV3zeQKqGY',
+    'https://www.youtube.com/watch?v=bBTPHL9NwM8',
+    'https://www.youtube.com/watch?v=GwIo3gDZCVQ',
+    'https://www.youtube.com/watch?v=1vZOEGNaAA8'
+  ];
+
+  const getValidVideoUrl = (rawUrl?: string, idx: number = 0) => {
+    if (typeof rawUrl === 'string' && (rawUrl.includes('youtube.com') || rawUrl.includes('youtu.be'))) {
+      return rawUrl;
     }
-    const match = url.match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|watch\?.+&v=))([\w-]{11})/);
+    return defaultVideos[idx % defaultVideos.length];
+  };
+
+  const getEmbedUrl = (url?: string) => {
+    const validUrl = getValidVideoUrl(url, 0);
+    if (validUrl.includes('youtube.com/embed/')) {
+      return validUrl.includes('?') ? `${validUrl}&autoplay=1` : `${validUrl}?autoplay=1`;
+    }
+    const match = validUrl.match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|watch\?.+&v=))([\w-]{11})/);
     if (match && match[1]) {
       return `https://www.youtube.com/embed/${match[1]}?autoplay=1`;
     }
-    return url;
+    return 'https://www.youtube.com/embed/17m0Iev3Pzw?autoplay=1';
   };
 
   // Recording handler for practice mode
@@ -384,7 +399,7 @@ export default function DashboardOverview() {
                 id: (courses && courses.length > 0 && courses[i % courses.length]?.id) || rec.id || `rec-${i}`,
                 title: rec.title || (courses && courses.length > 0 && courses[i % courses.length]?.title) || 'Recommended Skill Course',
                 provider: (courses && courses.length > 0 && courses[i % courses.length]?.provider) || 'SkillForge Academy',
-                videoUrl: rec.videoUrl || rec.url || (courses && courses.length > 0 && courses[i % courses.length]?.videoUrl) || 'https://www.youtube.com/watch?v=17m0Iev3Pzw'
+                videoUrl: getValidVideoUrl(rec.videoUrl || (courses && courses.length > 0 && courses[i % courses.length]?.videoUrl), i)
               };
               const courseId = matchedCourse.id;
               const progress = courseProgress[courseId] || 0;
@@ -425,12 +440,7 @@ export default function DashboardOverview() {
                   {/* Action Controls */}
                   <div className="flex items-center gap-2 pt-1">
                     <button
-                      onClick={() => {
-                        setActiveVideo(matchedCourse);
-                        if (matchedCourse.videoUrl) {
-                          window.open(matchedCourse.videoUrl, '_blank');
-                        }
-                      }}
+                      onClick={() => setActiveVideo(matchedCourse)}
                       className="flex-1 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition-colors flex items-center justify-center gap-1.5 shadow-sm shadow-blue-500/20"
                     >
                       <PlayCircle className="w-4 h-4" /> Watch Tutorial
@@ -439,8 +449,8 @@ export default function DashboardOverview() {
                       href={matchedCourse.videoUrl}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="p-2 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-xl transition-colors shrink-0"
-                      title="Open Video Link in New Tab"
+                      className="p-2 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-xl transition-colors shrink-0 flex items-center justify-center"
+                      title="Open Video Link in YouTube"
                     >
                       <ExternalLink className="w-4 h-4" />
                     </a>

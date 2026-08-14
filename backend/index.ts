@@ -827,10 +827,14 @@ app.get('/api/recommendations', async (req, res) => {
         { title: `System Design & Performance Optimization`, type: 'course', difficulty: 'Intermediate', justification: 'Crucial for technical interviews and senior development roles.', videoUrl: defaultVideos[2] }
       ];
     } else {
-      recommendations = recommendations.map((rec: any, idx: number) => ({
-        ...rec,
-        videoUrl: rec.videoUrl || rec.url || defaultVideos[idx % defaultVideos.length]
-      }));
+      recommendations = recommendations.map((rec: any, idx: number) => {
+        const rawVideo = rec.videoUrl || rec.video_url;
+        const isValidYT = typeof rawVideo === 'string' && (rawVideo.includes('youtube.com') || rawVideo.includes('youtu.be'));
+        return {
+          ...rec,
+          videoUrl: isValidYT ? rawVideo : defaultVideos[idx % defaultVideos.length]
+        };
+      });
     }
 
     res.json(recommendations);

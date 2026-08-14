@@ -18,8 +18,8 @@ export default function Login({ initialMode = 'login' }: LoginProps) {
   const [mode, setMode] = useState<'login' | 'register'>(initialMode);
 
   const [name, setName] = useState('');
-  const [email, setEmail] = useState('mayankshukal7890@gmail.com');
-  const [password, setPassword] = useState('Mayank@03');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -172,7 +172,7 @@ export default function Login({ initialMode = 'login' }: LoginProps) {
                 <Mail className="w-5 h-5 text-slate-400 absolute left-3.5 top-3.5" />
                 <input 
                   type="email" 
-                  placeholder="name@example.com"
+                  placeholder="yoo@gmail.com"
                   value={email}
                   onChange={e => setEmail(e.target.value)}
                   required
@@ -187,7 +187,7 @@ export default function Login({ initialMode = 'login' }: LoginProps) {
                 <Lock className="w-5 h-5 text-slate-400 absolute left-3.5 top-3.5" />
                 <input 
                   type="password" 
-                  placeholder="••••••••"
+                  placeholder="character@123"
                   value={password}
                   onChange={e => setPassword(e.target.value)}
                   required

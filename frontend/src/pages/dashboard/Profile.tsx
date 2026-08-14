@@ -368,7 +368,7 @@ export default function Profile() {
               </div>
               <div className="flex justify-between items-center py-3 border-b border-slate-100">
                 <span className="text-slate-500 text-sm font-medium">Skills Tracked</span>
-                <span className="text-blue-600 font-bold bg-blue-50 px-3 py-1 rounded-full text-xs">{user.skills?.length || 0}</span>
+                <span className="text-blue-600 font-bold bg-blue-50 px-3 py-1 rounded-full text-xs">{latestResume ? (user.skills?.length || 0) : 0}</span>
               </div>
               <div className="flex justify-between items-center py-3">
                 <span className="text-slate-500 text-sm font-medium">Active Roadmap</span>

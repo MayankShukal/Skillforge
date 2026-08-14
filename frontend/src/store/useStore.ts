@@ -16,6 +16,7 @@ interface User {
   roadmaps: any[];
   interviews: any[];
   progress: any[];
+  streak?: number;
 }
 
 interface StoreState {

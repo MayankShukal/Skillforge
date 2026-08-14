@@ -15,7 +15,10 @@ export default function MySkills() {
 
   if (!user) return null;
 
-  const validSkills = (user.skills || [])
+  const hasResume = user.resumes && user.resumes.length > 0;
+  const rawSkills = hasResume ? (user.skills || []) : [];
+
+  const validSkills = rawSkills
     .map((s: any) => ({
       ...s,
       formattedName: (typeof s.skill_name === 'string' ? s.skill_name : String(s.skill_name || '')).replace(/[{}"'`]/g, '').trim()
@@ -70,8 +73,6 @@ export default function MySkills() {
       console.error(err);
     }
   };
-
-  const hasResume = user.resumes && user.resumes.length > 0;
 
   return (
     <div className="max-w-6xl mx-auto space-y-8 pb-20 relative">

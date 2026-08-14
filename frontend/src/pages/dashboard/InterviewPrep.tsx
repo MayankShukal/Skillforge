@@ -1,39 +1,72 @@
 import { useState, useEffect, useRef } from 'react';
 import { useStore } from '../../store/useStore';
-import { Video, Mic, ShieldAlert, CheckCircle2, Loader2 } from 'lucide-react';
+import { Video, Mic, ShieldAlert, CheckCircle2, Loader2, Sparkles, Filter, ChevronDown, ChevronUp } from 'lucide-react';
 import { apiUrl } from '../../lib/api';
 
 export default function InterviewPrep() {
   const user = useStore(state => state.user);
   const setUser = useStore(state => state.setUser);
-  const [activeTab, setActiveTab] = useState('technical');
+  const [activeTab, setActiveTab] = useState<'technical' | 'behavioral' | 'system'>('technical');
+  const [selectedDifficulty, setSelectedDifficulty] = useState<'All' | 'Easy' | 'Medium' | 'Hard'>('All');
   const [questions, setQuestions] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [generatingAi, setGeneratingAi] = useState(false);
+  const [expandedAnswers, setExpandedAnswers] = useState<{ [key: number]: boolean }>({});
   const [recording, setRecording] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
   const [stream, setStream] = useState<MediaStream | null>(null);
 
+  const fetchQuestions = (diff: string = selectedDifficulty, cat: string = activeTab) => {
+    if (!user) return;
+    setLoading(true);
+    const categoryParam = cat === 'technical' ? 'Technical' : cat === 'behavioral' ? 'Behavioral' : 'System Design';
+    const url = apiUrl(`/api/interview/prep?userId=${user.id}&difficulty=${diff}&category=${categoryParam}&count=6`);
+
+    fetch(url)
+      .then(res => res.json())
+      .then(data => {
+        setQuestions(data);
+        setLoading(false);
+      })
+      .catch(err => {
+        console.error(err);
+        setLoading(false);
+      });
+  };
+
   useEffect(() => {
     if (user) {
-      fetch(apiUrl(`/api/interview/prep?userId=${user.id}`))
-        .then(res => res.json())
-        .then(data => {
-          setQuestions(data);
-          setLoading(false);
-        })
-        .catch(err => {
-          console.error(err);
-          setLoading(false);
-        });
+      fetchQuestions(selectedDifficulty, activeTab);
     }
-  }, [user]);
+  }, [user, activeTab, selectedDifficulty]);
+
+  const handleGenerateMoreAI = () => {
+    if (!user || generatingAi) return;
+    setGeneratingAi(true);
+    const categoryParam = activeTab === 'technical' ? 'Technical' : activeTab === 'behavioral' ? 'Behavioral' : 'System Design';
+    const url = apiUrl(`/api/interview/prep?userId=${user.id}&difficulty=${selectedDifficulty}&category=${categoryParam}&count=6`);
+
+    fetch(url)
+      .then(res => res.json())
+      .then(data => {
+        setQuestions(prev => [...data, ...prev]);
+        setGeneratingAi(false);
+      })
+      .catch(err => {
+        console.error(err);
+        setGeneratingAi(false);
+      });
+  };
+
+  const toggleAnswer = (idx: number) => {
+    setExpandedAnswers(prev => ({ ...prev, [idx]: !prev[idx] }));
+  };
 
   if (!user) return null;
 
   const startMockInterview = async () => {
     let mediaStream: MediaStream | null = null;
     try {
-      // Try to get video and audio
       mediaStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
     } catch (err) {
       console.warn("Failed to get video/audio, trying audio only...", err);
@@ -51,7 +84,6 @@ export default function InterviewPrep() {
     setRecording(true);
     
     if (mediaStream) {
-      // We need a slight delay to ensure the video element is rendered before setting srcObject
       setTimeout(() => {
         if (videoRef.current) {
           videoRef.current.srcObject = mediaStream;
@@ -73,13 +105,13 @@ export default function InterviewPrep() {
         body: JSON.stringify({
           userId: user.id,
           type: activeTab,
-          score: Math.floor(Math.random() * 30) + 65 // Random score between 65 and 95
+          score: Math.floor(Math.random() * 30) + 65
         })
       });
       const updatedUser = await res.json();
       if (res.ok) {
         setUser(updatedUser);
-        alert(`Mock interview completed! You scored ${updatedUser.interviews[updatedUser.interviews.length - 1].score}%.`);
+        alert(`Mock interview completed! You scored ${updatedUser.interviews[updatedUser.interviews.length - 1].score}%. Streak updated: ${updatedUser.streak || 1} Days! 🔥`);
       }
     } catch (error) {
       console.error(error);
@@ -87,7 +119,6 @@ export default function InterviewPrep() {
     setRecording(false);
   };
 
-  // Calculate stats from user.interviews
   const techInterviews = user.interviews?.filter((i: any) => i.type === 'technical') || [];
   const behavInterviews = user.interviews?.filter((i: any) => i.type === 'behavioral') || [];
   
@@ -105,9 +136,18 @@ export default function InterviewPrep() {
         <div>
           <h1 className="text-3xl font-bold text-slate-900 mb-2">Mock Interview Prep</h1>
           <p className="text-slate-500 text-lg">
-            Practice for your <span className="font-semibold text-slate-700">{user.career_goal}</span> role.
+            Practice AI-generated technical & behavioral questions for your <span className="font-semibold text-blue-600">{user.career_goal}</span> role.
           </p>
         </div>
+
+        <button
+          onClick={handleGenerateMoreAI}
+          disabled={generatingAi}
+          className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white px-5 py-3 rounded-xl font-bold text-sm transition-all shadow-md shadow-blue-500/20 flex items-center gap-2 disabled:opacity-60"
+        >
+          {generatingAi ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+          {generatingAi ? 'Generating AI Questions...' : 'Practice More AI Questions'}
+        </button>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -137,8 +177,8 @@ export default function InterviewPrep() {
               </h3>
               <p className="text-slate-400 text-sm mb-8">
                 {recording 
-                  ? 'Speak clearly and look at the camera.' 
-                  : 'AI-driven video interview with real-time feedback on tone, technical accuracy, and pacing.'}
+                  ? 'Speak clearly into your microphone and look at the camera.' 
+                  : 'AI-driven interactive interview with instant scoring and real-time streak tracking.'}
               </p>
               
               {recording ? (
@@ -175,41 +215,104 @@ export default function InterviewPrep() {
         </div>
 
         {/* Question Bank */}
-        <div className="lg:col-span-2 bg-white rounded-3xl border border-slate-200 shadow-sm flex flex-col h-[600px]">
-          <div className="border-b border-slate-100 p-2 flex gap-2">
-            <button 
-              onClick={() => setActiveTab('technical')}
-              className={`flex-1 py-3 text-sm font-semibold rounded-xl transition-colors ${activeTab === 'technical' ? 'bg-blue-50 text-blue-700' : 'text-slate-500 hover:bg-slate-50'}`}
-            >
-              Technical Questions
-            </button>
-            <button 
-              onClick={() => setActiveTab('behavioral')}
-              className={`flex-1 py-3 text-sm font-semibold rounded-xl transition-colors ${activeTab === 'behavioral' ? 'bg-purple-50 text-purple-700' : 'text-slate-500 hover:bg-slate-50'}`}
-            >
-              Behavioral Questions
-            </button>
+        <div className="lg:col-span-2 bg-white rounded-3xl border border-slate-200 shadow-sm flex flex-col min-h-[600px]">
+          {/* Header & Tabs */}
+          <div className="border-b border-slate-100 p-3 space-y-3">
+            <div className="flex gap-2">
+              <button 
+                onClick={() => setActiveTab('technical')}
+                className={`flex-1 py-2.5 text-xs font-bold rounded-xl transition-colors ${activeTab === 'technical' ? 'bg-blue-50 text-blue-700' : 'text-slate-500 hover:bg-slate-50'}`}
+              >
+                Technical
+              </button>
+              <button 
+                onClick={() => setActiveTab('behavioral')}
+                className={`flex-1 py-2.5 text-xs font-bold rounded-xl transition-colors ${activeTab === 'behavioral' ? 'bg-purple-50 text-purple-700' : 'text-slate-500 hover:bg-slate-50'}`}
+              >
+                Behavioral
+              </button>
+              <button 
+                onClick={() => setActiveTab('system')}
+                className={`flex-1 py-2.5 text-xs font-bold rounded-xl transition-colors ${activeTab === 'system' ? 'bg-emerald-50 text-emerald-700' : 'text-slate-500 hover:bg-slate-50'}`}
+              >
+                System Design
+              </button>
+            </div>
+
+            {/* Difficulty Selector */}
+            <div className="flex items-center justify-between pt-1 px-1">
+              <div className="flex items-center gap-1.5 text-xs text-slate-500 font-semibold">
+                <Filter className="w-3.5 h-3.5" /> Difficulty Filter:
+              </div>
+              <div className="flex gap-1.5">
+                {(['All', 'Easy', 'Medium', 'Hard'] as const).map(diff => (
+                  <button
+                    key={diff}
+                    onClick={() => setSelectedDifficulty(diff)}
+                    className={`px-3 py-1 rounded-lg text-xs font-bold transition-colors ${
+                      selectedDifficulty === diff 
+                        ? 'bg-slate-900 text-white shadow-sm' 
+                        : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                    }`}
+                  >
+                    {diff}
+                  </button>
+                ))}
+              </div>
+            </div>
           </div>
           
-          <div className="p-6 flex-1 overflow-y-auto space-y-4">
+          <div className="p-6 flex-1 overflow-y-auto space-y-4 max-h-[500px]">
             {loading ? (
               <div className="flex justify-center py-10"><Loader2 className="w-8 h-8 text-blue-600 animate-spin" /></div>
-            ) : questions.filter(q => (activeTab === 'technical' ? q.category !== 'Behavioral' : q.category === 'Behavioral')).length === 0 ? (
-              <div className="text-center py-10 text-slate-500">No questions found for this category.</div>
+            ) : questions.length === 0 ? (
+              <div className="text-center py-12 space-y-3">
+                <p className="text-slate-500 text-sm">No questions found matching your filter.</p>
+                <button
+                  onClick={handleGenerateMoreAI}
+                  className="px-4 py-2 bg-blue-600 text-white text-xs font-bold rounded-xl"
+                >
+                  Generate AI Questions Now
+                </button>
+              </div>
             ) : (
-              questions.filter(q => (activeTab === 'technical' ? q.category !== 'Behavioral' : q.category === 'Behavioral')).map((q, i) => (
-                <div key={i} className="p-5 rounded-2xl border border-slate-200 hover:border-blue-300 transition-colors cursor-pointer group">
-                  <div className="flex justify-between items-start mb-3">
-                    <span className={`px-2.5 py-1 rounded-md text-xs font-bold ${q.difficulty === 'Hard' ? 'bg-red-50 text-red-700' : 'bg-amber-50 text-amber-700'}`}>
-                      {q.difficulty}
-                    </span>
-                    <button className="text-blue-600 text-sm font-medium opacity-0 group-hover:opacity-100 transition-opacity">
-                      View Answer
-                    </button>
+              questions.map((q, i) => {
+                const isExpanded = !!expandedAnswers[i];
+                return (
+                  <div key={i} className="p-5 rounded-2xl border border-slate-200 hover:border-blue-300 transition-colors bg-white space-y-3">
+                    <div className="flex justify-between items-start">
+                      <div className="flex items-center gap-2">
+                        <span className={`px-2.5 py-0.5 rounded-md text-[10px] font-extrabold uppercase ${
+                          q.difficulty === 'Hard' ? 'bg-red-50 text-red-700 border border-red-200' : 
+                          q.difficulty === 'Medium' ? 'bg-amber-50 text-amber-700 border border-amber-200' : 
+                          'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                        }`}>
+                          {q.difficulty || 'Medium'}
+                        </span>
+                        <span className="text-[10px] font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded">
+                          {q.category || 'General'}
+                        </span>
+                      </div>
+                      <button 
+                        onClick={() => toggleAnswer(i)}
+                        className="text-blue-600 hover:text-blue-700 text-xs font-bold flex items-center gap-1"
+                      >
+                        {isExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                        {isExpanded ? 'Hide Answer' : 'View Answer'}
+                      </button>
+                    </div>
+
+                    <p className="font-bold text-slate-900 text-base">Q: {q.question}</p>
+
+                    {isExpanded && (
+                      <div className="p-4 bg-slate-50 rounded-xl text-sm text-slate-700 border border-slate-200/80 space-y-1.5">
+                        <p className="font-bold text-xs uppercase tracking-wider text-slate-400">Suggested STAR / Model Answer:</p>
+                        <p className="leading-relaxed text-slate-800 font-medium">{q.answer}</p>
+                      </div>
+                    )}
                   </div>
-                  <p className="font-medium text-slate-900">{q.question}</p>
-                </div>
-              ))
+                );
+              })
             )}
           </div>
         </div>

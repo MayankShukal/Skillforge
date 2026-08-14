@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useStore } from '../../store/useStore';
-import { Target, TrendingUp, Zap, MessageSquare, CheckCircle2, ChevronRight } from 'lucide-react';
+import { Target, TrendingUp, Zap, MessageSquare, CheckCircle2, ChevronRight, FileText } from 'lucide-react';
 import { LineChart, Line, XAxis, Tooltip, ResponsiveContainer } from 'recharts';
+import { Link } from 'react-router-dom';
 import { apiUrl } from '../../lib/api';
 
 const progressData = [
@@ -29,6 +30,8 @@ export default function DashboardOverview() {
 
   if (!user) return null;
 
+  const hasResume = user.resumes && user.resumes.length > 0;
+
   return (
     <div className="max-w-6xl mx-auto space-y-8 pb-20">
       {/* Header Greeting */}
@@ -38,6 +41,25 @@ export default function DashboardOverview() {
           Your AI career mentor has prepared today's plan to get you closer to your <span className="font-semibold text-blue-600">{user.career_goal}</span> role.
         </p>
       </div>
+
+      {!hasResume && (
+        <div className="bg-slate-900 text-white rounded-3xl p-6 shadow-xl flex flex-col md:flex-row items-center justify-between gap-4 relative overflow-hidden border border-slate-800">
+          <div className="flex items-center gap-4 relative z-10">
+            <div className="w-12 h-12 bg-blue-600/20 rounded-2xl flex items-center justify-center border border-blue-500/30 shrink-0">
+              <FileText className="w-6 h-6 text-blue-400" />
+            </div>
+            <div>
+              <h3 className="font-bold text-lg">No Resume Uploaded</h3>
+              <p className="text-slate-400 text-sm">
+                Upload your PDF resume under <strong>Resume Analyzer</strong> to extract verified skills, compute ATS scores, and unlock skill gap tracking.
+              </p>
+            </div>
+          </div>
+          <Link to="/dashboard/resume" className="bg-blue-600 hover:bg-blue-500 text-white px-5 py-2.5 rounded-xl font-bold text-sm shrink-0 transition-colors relative z-10">
+            Upload Resume
+          </Link>
+        </div>
+      )}
 
       {/* Quick Stats Row */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -55,33 +77,39 @@ export default function DashboardOverview() {
           <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
             <div className="flex justify-between items-center mb-6">
               <h3 className="text-xl font-bold text-slate-900">Career Readiness Score</h3>
-              <span className="px-3 py-1 bg-blue-50 text-blue-700 text-sm font-medium rounded-full border border-blue-100">Placement Ready in 4 weeks</span>
+              <span className="px-3 py-1 bg-blue-50 text-blue-700 text-sm font-medium rounded-full border border-blue-100">
+                {hasResume ? "Placement Ready in 4 weeks" : "Upload Resume to Unlock"}
+              </span>
             </div>
 
             <div className="flex flex-col md:flex-row gap-8 items-center">
               <div className="relative w-40 h-40 flex items-center justify-center shrink-0">
                 <svg className="w-full h-full transform -rotate-90">
                   <circle cx="80" cy="80" r="70" className="stroke-slate-100" strokeWidth="12" fill="none" />
-                  <circle cx="80" cy="80" r="70" className="stroke-blue-600" strokeWidth="12" fill="none" strokeDasharray="440" strokeDashoffset={440 - (440 * 76) / 100} strokeLinecap="round" />
+                  <circle cx="80" cy="80" r="70" className="stroke-blue-600" strokeWidth="12" fill="none" strokeDasharray="440" strokeDashoffset={hasResume ? 440 - (440 * 76) / 100 : 440} strokeLinecap="round" />
                 </svg>
                 <div className="absolute flex flex-col items-center">
-                  <span className="text-4xl font-black text-slate-900 tracking-tighter">76</span>
+                  <span className="text-4xl font-black text-slate-900 tracking-tighter">{hasResume ? 76 : 0}</span>
                   <span className="text-sm font-medium text-slate-500">/100</span>
                 </div>
               </div>
 
               <div className="flex-1 w-full space-y-4">
-                <h4 className="font-semibold text-slate-900">What is holding you back?</h4>
-                <div className="space-y-3">
-                  {user.skills?.filter((s: any) => (s.score || 0) < 60).slice(0, 3).map((s: any, i: number) => (
-                    <GapBar key={i} skill={s.skill_name} score={s.score || 40} />
-                  )) || (
-                      <GapBar skill="Machine Learning" score={42} />
+                <h4 className="font-semibold text-slate-900">Skill Gap Assessment</h4>
+                {hasResume ? (
+                  <div className="space-y-3">
+                    {user.skills?.filter((s: any) => (s.score || 0) < 60).slice(0, 3).map((s: any, i: number) => (
+                      <GapBar key={i} skill={s.skill_name} score={s.score || 40} />
+                    )) || (
+                      <p className="text-xs text-slate-500 italic">No major skill gaps identified.</p>
                     )}
-                </div>
+                  </div>
+                ) : (
+                  <p className="text-xs text-slate-500 italic">No skills extracted. Upload your resume under Resume Analyzer to perform skill gap analysis.</p>
+                )}
                 <div className="bg-blue-50 p-3 rounded-lg border border-blue-100 mt-4 text-sm flex items-start gap-2 text-blue-900">
                   <Zap className="w-4 h-4 shrink-0 mt-0.5 text-blue-600" />
-                  <p><span className="font-semibold">Fastest way to improve:</span> Complete the SQL module and build one ML project. I've updated your roadmap.</p>
+                  <p><span className="font-semibold">AI Recommendation:</span> {hasResume ? "Focus on SQL optimization and core architecture patterns." : "Upload your resume to receive AI-tailored career advice."}</p>
                 </div>
               </div>
             </div>

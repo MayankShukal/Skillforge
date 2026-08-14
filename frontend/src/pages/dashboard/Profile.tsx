@@ -258,58 +258,70 @@ export default function Profile() {
               )}
             </div>
 
-            {/* Extracted Skills */}
-            <div>
-              <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5 mb-3">
-                <Code className="w-4 h-4 text-blue-600" /> Skills Extracted From Profile / Resume ({user.skills?.length || 0})
-              </h3>
-              {user.skills && user.skills.length > 0 ? (
-                <div className="flex flex-wrap gap-2">
-                  {user.skills
-                    .map((skill: any) => ({
-                      ...skill,
-                      formattedName: (typeof skill.skill_name === 'string' ? skill.skill_name : String(skill.skill_name || '')).replace(/[{}"'`]/g, '').trim()
-                    }))
-                    .filter((skill: any) => skill.formattedName && !skill.formattedName.toLowerCase().includes('json') && skill.formattedName.length <= 40)
-                    .map((skill: any, idx: number) => (
-                      <span
-                        key={skill.id || idx}
-                        className="px-3.5 py-1.5 bg-slate-100 text-slate-800 rounded-xl text-xs font-bold flex items-center gap-1.5 border border-slate-200/60"
-                      >
-                        {skill.formattedName}
-                        <span className="text-[10px] text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded font-semibold uppercase">
-                          {skill.level || 'Verified'}
-                        </span>
-                      </span>
-                    ))}
-                </div>
-              ) : (
-                <p className="text-sm text-slate-500 italic">No skills recorded yet. Add skills under My Skills or upload your resume.</p>
-              )}
-            </div>
-
-            {/* Extracted Projects */}
-            <div className="pt-2">
-              <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5 mb-3">
-                <Briefcase className="w-4 h-4 text-emerald-600" /> Portfolio Projects ({user.projects?.length || 0})
-              </h3>
-              {user.projects && user.projects.length > 0 ? (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  {user.projects.map((proj: any, idx: number) => (
-                    <div key={proj.id || idx} className="p-4 bg-slate-50 rounded-2xl border border-slate-200/70">
-                      <h4 className="font-bold text-slate-900 text-sm mb-1">{proj.title}</h4>
-                      <p className="text-xs text-slate-600 line-clamp-2 mb-2">{proj.description}</p>
-                      <div className="flex items-center justify-between text-xs text-slate-500 font-medium">
-                        <span className="bg-blue-100 text-blue-800 px-2 py-0.5 rounded text-[10px] font-bold">{proj.technologies}</span>
-                        <span>{proj.progress || 0}% Complete</span>
-                      </div>
+            {/* Extracted Skills & Progress */}
+            {!latestResume ? (
+              <div className="p-6 bg-slate-50 border border-dashed border-slate-300 rounded-2xl text-center space-y-3">
+                <FileText className="w-8 h-8 text-slate-400 mx-auto" />
+                <h4 className="font-bold text-slate-800 text-sm">No Resume Uploaded</h4>
+                <p className="text-xs text-slate-500 max-w-sm mx-auto">
+                  Upload your resume under <strong>Resume Analyzer</strong> to extract verified skills, calculate ATS scores, and generate your career progress tracking.
+                </p>
+              </div>
+            ) : (
+              <>
+                <div>
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5 mb-3">
+                    <Code className="w-4 h-4 text-blue-600" /> Skills Extracted From Resume ({user.skills?.length || 0})
+                  </h3>
+                  {user.skills && user.skills.length > 0 ? (
+                    <div className="flex flex-wrap gap-2">
+                      {user.skills
+                        .map((skill: any) => ({
+                          ...skill,
+                          formattedName: (typeof skill.skill_name === 'string' ? skill.skill_name : String(skill.skill_name || '')).replace(/[{}"'`]/g, '').trim()
+                        }))
+                        .filter((skill: any) => skill.formattedName && !skill.formattedName.toLowerCase().includes('json') && skill.formattedName.length <= 40)
+                        .map((skill: any, idx: number) => (
+                          <span
+                            key={skill.id || idx}
+                            className="px-3.5 py-1.5 bg-slate-100 text-slate-800 rounded-xl text-xs font-bold flex items-center gap-1.5 border border-slate-200/60"
+                          >
+                            {skill.formattedName}
+                            <span className="text-[10px] text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded font-semibold uppercase">
+                              {skill.level || 'Verified'}
+                            </span>
+                          </span>
+                        ))}
                     </div>
-                  ))}
+                  ) : (
+                    <p className="text-sm text-slate-500 italic">No skills extracted from resume yet.</p>
+                  )}
                 </div>
-              ) : (
-                <p className="text-sm text-slate-500 italic">No projects listed yet. Add projects under the Projects tab.</p>
-              )}
-            </div>
+
+                {/* Extracted Projects */}
+                <div className="pt-2">
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5 mb-3">
+                    <Briefcase className="w-4 h-4 text-emerald-600" /> Portfolio Projects ({user.projects?.length || 0})
+                  </h3>
+                  {user.projects && user.projects.length > 0 ? (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      {user.projects.map((proj: any, idx: number) => (
+                        <div key={proj.id || idx} className="p-4 bg-slate-50 rounded-2xl border border-slate-200/70">
+                          <h4 className="font-bold text-slate-900 text-sm mb-1">{proj.title}</h4>
+                          <p className="text-xs text-slate-600 line-clamp-2 mb-2">{proj.description}</p>
+                          <div className="flex items-center justify-between text-xs text-slate-500 font-medium">
+                            <span className="bg-blue-100 text-blue-800 px-2 py-0.5 rounded text-[10px] font-bold">{proj.technologies}</span>
+                            <span>{proj.progress || 0}% Complete</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-slate-500 italic">No projects listed yet. Add projects under the Projects tab.</p>
+                  )}
+                </div>
+              </>
+            )}
 
             {/* Raw Extracted Resume Text Toggle */}
             {latestResume?.extracted_text && (

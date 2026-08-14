@@ -668,31 +668,40 @@ app.get('/api/recommendations', async (req, res) => {
       return res.status(404).json({ error: "User not found" });
     }
 
+    const role = user.career_goal || 'Software Engineer';
+    const skillsList = user.skills.map(s => s.skill_name).join(', ');
+    const systemPrompt = "Return ONLY a JSON array of 3 specific recommendations for a candidate. Each object has properties: 'title' (string), 'type' ('course' or 'project'), 'difficulty' ('Beginner' or 'Intermediate' or 'Advanced'), and 'justification' (string why it boosts their career).";
+    const userPrompt = `Target Role: ${role}. Current Skills: ${skillsList || 'General Programming'}`;
+
     let recommendations = [];
-    if (process.env.OPENAI_API_KEY && process.env.OPENAI_API_KEY !== 'dummy') {
-      try {
+    try {
+      let rawAiText: string | null = null;
+      if (process.env.OPENAI_API_KEY && process.env.OPENAI_API_KEY !== 'dummy') {
         const response = await openai.chat.completions.create({
           model: "gpt-3.5-turbo",
-          messages: [{
-            role: "system",
-            content: "Return a JSON array of 3 recommended courses or projects for a user based on their skills. Each object should have 'title', 'type' (course/project), 'difficulty', and 'justification'."
-          }, {
-            role: "user",
-            content: `Skills: ${user.skills.map(s => s.skill_name).join(', ')}`
-          }],
+          messages: [{ role: "system", content: systemPrompt }, { role: "user", content: userPrompt }]
         });
-        recommendations = JSON.parse(response.choices[0].message.content || '[]');
-      } catch (e) {
-        console.error("AI Recommendation Error:", e);
+        rawAiText = response.choices[0]?.message?.content || null;
+      } else if (process.env.GEMINI_API_KEY) {
+        rawAiText = await callGemini(systemPrompt, userPrompt);
       }
+
+      if (rawAiText) {
+        const cleaned = rawAiText.replace(/```json/gi, '').replace(/```/g, '').trim();
+        const parsed = JSON.parse(cleaned);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          recommendations = parsed;
+        }
+      }
+    } catch (e) {
+      console.error("AI Recommendation Error:", e);
     }
 
-    // Fallback
     if (recommendations.length === 0) {
       recommendations = [
-        { title: 'Mastering System Design', type: 'course', difficulty: 'Advanced', justification: 'Essential for senior roles.' },
-        { title: 'Fullstack AI Application', type: 'project', difficulty: 'Intermediate', justification: 'Great way to combine frontend and backend skills.' },
-        { title: 'Advanced Data Structures', type: 'course', difficulty: 'Intermediate', justification: 'Crucial for technical interviews.' }
+        { title: `Building Scalable ${role} Applications`, type: 'course', difficulty: 'Advanced', justification: `Targets core architecture skills needed for ${role} positions.` },
+        { title: `Full-Stack ${role} Portfolio Project`, type: 'project', difficulty: 'Intermediate', justification: `Demonstrates real-world implementation capabilities with ${skillsList || 'modern frameworks'}.` },
+        { title: `System Design & Performance Optimization`, type: 'course', difficulty: 'Intermediate', justification: 'Crucial for technical interviews and senior development roles.' }
       ];
     }
 
@@ -769,35 +778,48 @@ app.get('/api/interview/prep', async (req, res) => {
   }
 
   try {
-    const user = await prisma.user.findUnique({ where: { id: userId } });
+    const user = await prisma.user.findUnique({ where: { id: userId }, include: { skills: true } });
     if (!user) {
       return res.status(404).json({ error: "User not found" });
     }
 
+    const role = user.career_goal || 'Software Engineer';
+    const skillsList = user.skills.map(s => s.skill_name).join(', ');
+    const systemPrompt = "You are an expert AI interviewer. Return ONLY a JSON array of 6 interview questions tailored to the candidate's target role and skills. Each object has: 'question' (string), 'category' ('Technical' or 'Behavioral' or 'System Design'), 'difficulty' ('Easy' or 'Medium' or 'Hard'), 'answer' (string STAR format answer).";
+    const userPrompt = `Target Role: ${role}. Candidate Skills: ${skillsList || 'General Programming'}`;
+
     let questions = [];
-    if (process.env.OPENAI_API_KEY && process.env.OPENAI_API_KEY !== 'dummy') {
-      try {
+    try {
+      let rawAiText: string | null = null;
+      if (process.env.OPENAI_API_KEY && process.env.OPENAI_API_KEY !== 'dummy') {
         const response = await openai.chat.completions.create({
           model: "gpt-3.5-turbo",
-          messages: [{
-            role: "system",
-            content: "Return a JSON array of 3 interview questions for a user. Each object: 'question' (string), 'category' (string), 'difficulty' (string), 'answer' (string)."
-          }, {
-            role: "user",
-            content: `Role: ${user.career_goal || 'Software Engineer'}`
-          }],
+          messages: [{ role: "system", content: systemPrompt }, { role: "user", content: userPrompt }]
         });
-        questions = JSON.parse(response.choices[0].message.content || '[]');
-      } catch (e) {
-        console.error("AI Interview Prep Error:", e);
+        rawAiText = response.choices[0]?.message?.content || null;
+      } else if (process.env.GEMINI_API_KEY) {
+        rawAiText = await callGemini(systemPrompt, userPrompt);
       }
+
+      if (rawAiText) {
+        const cleaned = rawAiText.replace(/```json/gi, '').replace(/```/g, '').trim();
+        const parsed = JSON.parse(cleaned);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          questions = parsed;
+        }
+      }
+    } catch (e) {
+      console.error("AI Interview Prep Error:", e);
     }
 
     if (questions.length === 0) {
       questions = [
-        { category: 'General', difficulty: 'Medium', question: 'Describe a challenging project you worked on.', answer: 'Use the STAR method: Situation, Task, Action, Result.' },
-        { category: 'Technical', difficulty: 'Medium', question: 'How do you handle state management in a large application?', answer: 'Discuss tools like Redux, Zustand, or Context API, and the trade-offs of each.' },
-        { category: 'System Design', difficulty: 'Hard', question: 'How would you scale a web application to handle 1 million users?', answer: 'Discuss load balancing, caching, database indexing, and horizontal scaling.' }
+        { category: 'Technical', difficulty: 'Medium', question: `How would you architect a production-ready system for a ${role} position using ${skillsList || 'modern tech stack'}?`, answer: 'Focus on modular component design, REST/GraphQL API contracts, automated unit/integration tests, and clear error boundaries.' },
+        { category: 'Technical', difficulty: 'Hard', question: `How do you diagnose performance bottlenecks and optimize database queries or API latency in ${role} projects?`, answer: 'Use APM tools, database indexes, query profiling, Redis caching, and asynchronous job queues.' },
+        { category: 'Behavioral', difficulty: 'Medium', question: 'Describe a time when you had to adapt quickly to a major requirement change mid-sprint.', answer: 'Use the STAR method: explain the situation, how you communicated with stakeholders, reprioritized backlog items, and delivered.' },
+        { category: 'Behavioral', difficulty: 'Medium', question: 'How do you handle technical disagreements within an engineering team?', answer: 'Emphasize data-driven evaluation, active listening, benchmarking prototypes, and aligning with team deliverables.' },
+        { category: 'Technical', difficulty: 'Easy', question: `What security best practices do you enforce when building ${role} applications?`, answer: 'Input sanitization, HTTPS/TLS, JWT expiration, CORS configuration, password hashing with bcrypt, and parameterized queries.' },
+        { category: 'Behavioral', difficulty: 'Hard', question: 'Tell me about a complex project that missed a deadline and what lessons you took away.', answer: 'Be transparent, take accountability, highlight root cause analysis, and detail workflow improvements implemented.' }
       ];
     }
 

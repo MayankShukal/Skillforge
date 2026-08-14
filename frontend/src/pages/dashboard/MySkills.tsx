@@ -71,6 +71,8 @@ export default function MySkills() {
     }
   };
 
+  const hasResume = user.resumes && user.resumes.length > 0;
+
   return (
     <div className="max-w-6xl mx-auto space-y-8 pb-20 relative">
       <div className="flex justify-between items-end">
@@ -80,6 +82,7 @@ export default function MySkills() {
             Track and improve your proficiency in various domains.
           </p>
         </div>
+
         <button 
           onClick={() => setShowModal(true)}
           className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-3 rounded-xl font-semibold transition-colors flex items-center gap-2 shadow-md shadow-blue-500/20"
@@ -87,6 +90,16 @@ export default function MySkills() {
           <Plus className="w-5 h-5" /> Add New Skill
         </button>
       </div>
+
+      {!hasResume && validSkills.length === 0 && (
+        <div className="p-6 bg-blue-50/60 border border-blue-200/80 rounded-3xl text-center space-y-3">
+          <Award className="w-8 h-8 text-blue-600 mx-auto" />
+          <h3 className="font-bold text-slate-900">No Resume Uploaded Yet</h3>
+          <p className="text-sm text-slate-600 max-w-md mx-auto">
+            Upload your resume under <strong>Resume Analyzer</strong> to automatically extract, score, and organize your technical & soft skills here.
+          </p>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
         <SkillCategory title="Technical Skills" skills={technicalSkills} icon={<Zap className="w-5 h-5 text-blue-500" />} onDelete={handleDeleteSkill} />

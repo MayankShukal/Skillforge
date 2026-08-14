@@ -65,7 +65,7 @@ export default function Login({ initialMode = 'login' }: LoginProps) {
       let msg = error.response?.data?.error;
       if (!msg) {
         if (!error.response) {
-          msg = `Cannot connect to backend server at ${apiUrl('')}. Please start backend server on port 5000.`;
+          msg = `Cannot reach backend (${apiUrl('')}). If using Render free tier, server may need ~30s to wake up. Please wait a moment and try again.`;
         } else {
           msg = mode === 'register' ? 'Registration failed' : 'Invalid email or password';
         }
@@ -96,7 +96,8 @@ export default function Login({ initialMode = 'login' }: LoginProps) {
       }, 600);
     } catch (error: any) {
       console.error("Google Auth error", error);
-      toast.error('Google Sign In failed. Please try again.');
+      const msg = error.response?.data?.error || (!error.response ? `Cannot reach backend (${apiUrl('')}). Server waking up...` : 'Google Sign In failed.');
+      toast.error(msg);
       setLoading(false);
     }
   };

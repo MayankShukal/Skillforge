@@ -75,6 +75,32 @@ export default function Login({ initialMode = 'login' }: LoginProps) {
     }
   };
 
+  const handleGoogleSignIn = async () => {
+    setLoading(true);
+    try {
+      const response = await axios.post(apiUrl('/api/auth/google'), {
+        email: email || 'mayank.google@gmail.com',
+        name: name || 'Mayank Shukal'
+      });
+
+      setUser(response.data.user);
+      setToken(response.data.token);
+      toast.success('Signed in with Google successfully!');
+
+      setTimeout(() => {
+        if (response.data.isNew) {
+          navigate('/onboarding');
+        } else {
+          navigate('/dashboard');
+        }
+      }, 600);
+    } catch (error: any) {
+      console.error("Google Auth error", error);
+      toast.error('Google Sign In failed. Please try again.');
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
       <div className="max-w-md w-full bg-white rounded-3xl shadow-xl border border-slate-100 overflow-hidden">
@@ -223,7 +249,9 @@ export default function Login({ initialMode = 'login' }: LoginProps) {
           
           <button 
             type="button"
-            className="mt-6 w-full bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 py-3 rounded-xl font-medium transition-colors flex items-center justify-center gap-2"
+            onClick={handleGoogleSignIn}
+            disabled={loading}
+            className="mt-6 w-full bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 py-3 rounded-xl font-medium transition-colors flex items-center justify-center gap-2 shadow-sm disabled:opacity-60"
           >
             <svg viewBox="0 0 24 24" className="w-5 h-5" aria-hidden="true">
               <path d="M12.0003 4.75C13.7703 4.75 15.3553 5.36002 16.6053 6.54998L20.0303 3.125C17.9502 1.19 15.2353 0 12.0003 0C7.31028 0 3.25527 2.69 1.28027 6.60998L5.27028 9.70498C6.21525 6.86002 8.87028 4.75 12.0003 4.75Z" fill="#EA4335"/>

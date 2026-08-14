@@ -239,6 +239,41 @@ app.post('/api/auth/login', async (req, res) => {
   }
 });
 
+app.post('/api/auth/google', async (req, res) => {
+  const { email, name } = req.body;
+  const targetEmail = (email || 'google.user@gmail.com').trim().toLowerCase();
+  const targetName = (name || 'Google Candidate').trim();
+
+  try {
+    let user = await prisma.user.findFirst({
+      where: { email: targetEmail },
+      include: userInclude
+    });
+
+    let isNew = false;
+    if (!user) {
+      isNew = true;
+      const dummyPasswordHash = await bcrypt.hash('GoogleOAuth2026Secret!', 10);
+      user = await prisma.user.create({
+        data: {
+          name: targetName,
+          email: targetEmail,
+          passwordHash: dummyPasswordHash,
+          career_goal: 'Full Stack Developer'
+        },
+        include: userInclude
+      });
+    }
+
+    const token = jwt.sign({ userId: user.id }, JWT_SECRET, { expiresIn: '7d' });
+    console.log("--> Google Sign In successful for:", targetEmail);
+    res.json({ user, token, isNew });
+  } catch (error) {
+    console.error("Google Auth error:", error);
+    res.status(500).json({ error: "Google Sign In failed." });
+  }
+});
+
 // ---------------------------------------------------------
 // Onboarding & Profile Endpoints
 // ---------------------------------------------------------

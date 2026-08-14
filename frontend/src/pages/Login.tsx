@@ -4,6 +4,7 @@ import { useStore } from '../store/useStore';
 import { Brain, ArrowRight, User, Mail, Lock, Sparkles } from 'lucide-react';
 import axios from 'axios';
 import toast from 'react-hot-toast';
+import { apiUrl } from '../lib/api';
 
 interface LoginProps {
   initialMode?: 'login' | 'register';
@@ -24,6 +25,8 @@ export default function Login({ initialMode = 'login' }: LoginProps) {
     e.preventDefault();
     setLoading(true);
 
+    const cleanEmail = email.trim().toLowerCase();
+
     try {
       if (mode === 'register') {
         if (!name.trim()) {
@@ -32,9 +35,9 @@ export default function Login({ initialMode = 'login' }: LoginProps) {
           return;
         }
 
-        const response = await axios.post('http://localhost:5000/api/auth/register', {
+        const response = await axios.post(apiUrl('/api/auth/register'), {
           name: name.trim(),
-          email: email.trim(),
+          email: cleanEmail,
           password
         });
 
@@ -45,8 +48,8 @@ export default function Login({ initialMode = 'login' }: LoginProps) {
           navigate('/onboarding');
         }, 600);
       } else {
-        const response = await axios.post('http://localhost:5000/api/auth/login', {
-          email: email.trim(),
+        const response = await axios.post(apiUrl('/api/auth/login'), {
+          email: cleanEmail,
           password
         });
 

@@ -101,14 +101,25 @@ app.post('/api/auth/register', async (req, res) => {
   }
 
   try {
-    const existingUser = await prisma.user.findUnique({ where: { email } });
+    const cleanEmail = email.trim().toLowerCase();
+    const rawEmail = email.trim();
+
+    const existingUser = await prisma.user.findFirst({
+      where: {
+        OR: [
+          { email: cleanEmail },
+          { email: rawEmail }
+        ]
+      }
+    });
+
     if (existingUser) {
-      return res.status(400).json({ error: "User already exists" });
+      return res.status(400).json({ error: "User already exists with this email" });
     }
 
     const passwordHash = await bcrypt.hash(password, 10);
     const user = await prisma.user.create({
-      data: { name, email, passwordHash },
+      data: { name: name.trim(), email: cleanEmail, passwordHash },
       include: userInclude
     });
 
@@ -116,11 +127,7 @@ app.post('/api/auth/register', async (req, res) => {
     res.status(201).json({ user, token });
   } catch (error: any) {
     console.error("Registration error:", error);
-    const isConnError = error?.message?.includes("Server selection timeout") || error?.code === "P2010";
-    const msg = isConnError
-      ? "Cannot connect to MongoDB. Please check DATABASE_URL in backend/.env or start your MongoDB service."
-      : "Registration failed due to an internal error.";
-    res.status(500).json({ error: msg });
+    res.status(500).json({ error: "Registration failed due to an internal server error." });
   }
 });
 
@@ -131,8 +138,16 @@ app.post('/api/auth/login', async (req, res) => {
   }
 
   try {
-    const user = await prisma.user.findUnique({
-      where: { email },
+    const cleanEmail = email.trim().toLowerCase();
+    const rawEmail = email.trim();
+
+    const user = await prisma.user.findFirst({
+      where: {
+        OR: [
+          { email: cleanEmail },
+          { email: rawEmail }
+        ]
+      },
       include: userInclude
     });
 
@@ -149,11 +164,7 @@ app.post('/api/auth/login', async (req, res) => {
     res.json({ user, token });
   } catch (error: any) {
     console.error("Login error:", error);
-    const isConnError = error?.message?.includes("Server selection timeout") || error?.code === "P2010";
-    const msg = isConnError
-      ? "Cannot connect to MongoDB. Please check DATABASE_URL in backend/.env or start your MongoDB service."
-      : "Login failed due to an internal error.";
-    res.status(500).json({ error: msg });
+    res.status(500).json({ error: "Login failed due to an internal server error." });
   }
 });
 

@@ -211,8 +211,23 @@ export default function Login({ initialMode = 'login' }: LoginProps) {
             </button>
           </form>
 
+          {/* Quick Demo Fill Helper */}
+          <div className="mt-4 text-center">
+            <button
+              type="button"
+              onClick={() => {
+                setEmail('mayankshukal7890@gmail.com');
+                setPassword('Mayank@03');
+                toast.success('Demo credentials loaded! Click Sign In.');
+              }}
+              className="text-xs font-semibold text-blue-600 hover:text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 px-3 py-1.5 rounded-lg transition-colors"
+            >
+              ⚡ Quick Fill Demo Account
+            </button>
+          </div>
+
           {/* Toggle option */}
-          <div className="mt-6 text-center text-sm text-slate-600">
+          <div className="mt-5 text-center text-sm text-slate-600">
             {mode === 'register' ? (
               <p>
                 Already have an account?{' '}

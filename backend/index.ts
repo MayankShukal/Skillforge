@@ -155,7 +155,28 @@ app.post('/api/auth/login', async (req, res) => {
       return res.status(401).json({ error: "Invalid email or password" });
     }
 
-    const isValid = await bcrypt.compare(password, user.passwordHash);
+    let isValid = false;
+    const isBcrypt = user.passwordHash.startsWith('$2a$') || user.passwordHash.startsWith('$2b$') || user.passwordHash.startsWith('$2y$');
+
+    if (isBcrypt) {
+      isValid = await bcrypt.compare(password, user.passwordHash);
+    } else {
+      // Handle legacy unhashed or seeded passwords
+      if (password === user.passwordHash) {
+        isValid = true;
+        // Auto-upgrade legacy password to bcrypt hash
+        try {
+          const newHash = await bcrypt.hash(password, 10);
+          await prisma.user.update({
+            where: { id: user.id },
+            data: { passwordHash: newHash }
+          });
+        } catch (e) {
+          console.error("Failed to upgrade legacy password hash", e);
+        }
+      }
+    }
+
     if (!isValid) {
       return res.status(401).json({ error: "Invalid email or password" });
     }

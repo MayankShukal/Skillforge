@@ -71,6 +71,10 @@ app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+app.get('/', (req, res) => {
+  res.send('Skillforge Backend Server is Running Live!');
+});
+
 // Helper to validate user ID strings
 function isValidObjectId(id: any): boolean {
   return typeof id === 'string' && id.trim().length > 0;

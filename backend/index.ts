@@ -269,11 +269,12 @@ app.post('/api/resume/upload', upload.single('resume'), async (req, res) => {
     const parser = new PDFParse({ data: dataBuffer });
     const data = await parser.getText();
     await parser.destroy();
-    const text = data.text;
+    const text = data.text || '';
 
     // AI Extraction
-    let skillsJson = [];
+    let skillsJson: any[] = [];
     try {
+      let rawAiText: string | null = null;
       if (process.env.OPENAI_API_KEY && process.env.OPENAI_API_KEY !== 'dummy') {
         const response = await openai.chat.completions.create({
           model: "gpt-3.5-turbo",
@@ -285,56 +286,87 @@ app.post('/api/resume/upload', upload.single('resume'), async (req, res) => {
             content: text.substring(0, 3000) 
           }],
         });
-        skillsJson = JSON.parse(response.choices[0].message.content || '[]');
-      } else {
-        // Fallback for demo
-        skillsJson = [
-          { skill_name: "Python", category: "Technical", level: "Intermediate" },
-          { skill_name: "React", category: "Technical", level: "Advanced" },
-          { skill_name: "Teamwork", category: "Soft", level: "Advanced" }
-        ];
+        rawAiText = response.choices[0]?.message?.content || null;
+      } else if (process.env.GEMINI_API_KEY) {
+        rawAiText = await callGemini(
+          "You are an AI that extracts skills from a resume. Return ONLY a JSON array of objects with properties 'skill_name' (string), 'category' (Technical/Soft), 'level' (Beginner/Intermediate/Advanced).",
+          "Extract skills from this text:\n" + text.substring(0, 3000)
+        );
+      }
+
+      if (rawAiText) {
+        const cleaned = rawAiText.replace(/```json/gi, '').replace(/```/g, '').trim();
+        const parsed = JSON.parse(cleaned);
+        if (Array.isArray(parsed)) {
+          skillsJson = parsed;
+        }
       }
     } catch (aiError) {
       console.error("AI Skill Extraction Error:", aiError);
-      skillsJson = [
-        { skill_name: "Python", category: "Technical", level: "Intermediate" },
-        { skill_name: "Communication", category: "Soft", level: "Advanced" }
+    }
+
+    if (!skillsJson || skillsJson.length === 0) {
+      const commonSkills = [
+        { name: 'JavaScript', category: 'Technical' },
+        { name: 'TypeScript', category: 'Technical' },
+        { name: 'Python', category: 'Technical' },
+        { name: 'React', category: 'Technical' },
+        { name: 'Node.js', category: 'Technical' },
+        { name: 'SQL', category: 'Technical' },
+        { name: 'Git', category: 'Technical' },
+        { name: 'Docker', category: 'Technical' },
+        { name: 'Communication', category: 'Soft' },
+        { name: 'Team Leadership', category: 'Soft' }
       ];
+      const textUpper = text.toUpperCase();
+      skillsJson = commonSkills
+        .filter(s => textUpper.includes(s.name.toUpperCase()))
+        .map(s => ({ skill_name: s.name, category: s.category, level: 'Intermediate' }));
+
+      if (skillsJson.length === 0) {
+        skillsJson = [
+          { skill_name: "Software Engineering", category: "Technical", level: "Intermediate" },
+          { skill_name: "Problem Solving", category: "Soft", level: "Advanced" }
+        ];
+      }
     }
 
     // Save Resume to DB
     await prisma.resume.create({
       data: { 
         user_id: userId, 
-        extracted_text: text, 
+        extracted_text: text.substring(0, 5000), 
         file_url: req.file.filename, 
-        resume_score: Math.floor(Math.random() * 20) + 75 // Mock score 75-95
+        resume_score: Math.floor(Math.random() * 20) + 75
       }
     });
 
-    // Save Skills to DB
+    // Save clean Skills to DB
     for (const s of skillsJson) {
-      // Check if skill already exists for this user to avoid duplicates
+      let rawName = typeof s === 'string' ? s : (s.skill_name || s.name || '');
+      rawName = rawName.replace(/[{}"'`]/g, '').trim();
+      if (!rawName || rawName.length > 40 || rawName.toLowerCase().includes('json')) continue;
+
       const existingSkill = await prisma.skill.findFirst({
-        where: { user_id: userId, skill_name: s.skill_name }
+        where: { user_id: userId, skill_name: rawName }
       });
 
       if (!existingSkill) {
         await prisma.skill.create({
           data: { 
             user_id: userId, 
-            skill_name: s.skill_name, 
-            category: s.category || 'Technical', 
-            level: s.level || 'Beginner', 
+            skill_name: rawName, 
+            category: s.category === 'Soft' ? 'Soft' : 'Technical', 
+            level: s.level || 'Intermediate', 
             source: 'resume', 
-            score: s.level === 'Advanced' ? 90 : s.level === 'Intermediate' ? 60 : 30 
+            score: s.level === 'Advanced' ? 90 : s.level === 'Intermediate' ? 60 : 40
           }
         });
       }
     }
 
     // Clean up uploaded file
-    fs.unlinkSync(req.file.path);
+    try { fs.unlinkSync(req.file.path); } catch (e) {}
 
     const updatedUser = await prisma.user.findUnique({
       where: { id: userId },
@@ -348,11 +380,39 @@ app.post('/api/resume/upload', upload.single('resume'), async (req, res) => {
   }
 });
 
+app.delete('/api/resume/:id', async (req, res) => {
+  const { id } = req.params;
+  try {
+    const resume = await prisma.resume.findUnique({ where: { id } });
+    if (!resume) {
+      return res.status(404).json({ error: "Resume not found" });
+    }
+
+    await prisma.skill.deleteMany({
+      where: { user_id: resume.user_id, source: 'resume' }
+    });
+
+    await prisma.resume.delete({ where: { id } });
+
+    const updatedUser = await prisma.user.findUnique({
+      where: { id: resume.user_id },
+      include: userInclude
+    });
+
+    res.json(updatedUser);
+  } catch (error) {
+    console.error("Delete resume error:", error);
+    res.status(500).json({ error: "Failed to delete resume." });
+  }
+});
+
 app.post('/api/skills', async (req, res) => {
   const { userId, skill_name, category, level } = req.body;
   if (!userId || !skill_name) {
     return res.status(400).json({ error: "Missing userId or skill_name" });
   }
+
+  const cleanName = skill_name.replace(/[{}"'`]/g, '').trim();
 
   try {
     const existingUser = await prisma.user.findUnique({ where: { id: userId } });
@@ -361,7 +421,7 @@ app.post('/api/skills', async (req, res) => {
     }
 
     const existingSkill = await prisma.skill.findFirst({
-      where: { user_id: userId, skill_name: skill_name }
+      where: { user_id: userId, skill_name: cleanName }
     });
 
     if (existingSkill) {
@@ -375,7 +435,7 @@ app.post('/api/skills', async (req, res) => {
     await prisma.skill.create({
       data: {
         user_id: userId,
-        skill_name,
+        skill_name: cleanName,
         category: category || 'Technical',
         level: level || 'Beginner',
         source: 'manual',
@@ -392,6 +452,26 @@ app.post('/api/skills', async (req, res) => {
   } catch (error) {
     console.error("Add skill error:", error);
     res.status(500).json({ error: "Failed to add skill." });
+  }
+});
+
+app.delete('/api/skills/:id', async (req, res) => {
+  const { id } = req.params;
+  try {
+    const skill = await prisma.skill.findUnique({ where: { id } });
+    if (!skill) return res.status(404).json({ error: "Skill not found" });
+
+    await prisma.skill.delete({ where: { id } });
+
+    const updatedUser = await prisma.user.findUnique({
+      where: { id: skill.user_id },
+      include: userInclude
+    });
+
+    res.json(updatedUser);
+  } catch (error) {
+    console.error("Delete skill error:", error);
+    res.status(500).json({ error: "Failed to delete skill." });
   }
 });
 

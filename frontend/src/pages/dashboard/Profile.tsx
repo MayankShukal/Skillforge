@@ -265,17 +265,23 @@ export default function Profile() {
               </h3>
               {user.skills && user.skills.length > 0 ? (
                 <div className="flex flex-wrap gap-2">
-                  {user.skills.map((skill: any, idx: number) => (
-                    <span
-                      key={skill.id || idx}
-                      className="px-3.5 py-1.5 bg-slate-100 text-slate-800 rounded-xl text-xs font-bold flex items-center gap-1.5 border border-slate-200/60"
-                    >
-                      {skill.skill_name}
-                      <span className="text-[10px] text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded font-semibold uppercase">
-                        {skill.level || 'Verified'}
+                  {user.skills
+                    .map((skill: any) => ({
+                      ...skill,
+                      formattedName: (typeof skill.skill_name === 'string' ? skill.skill_name : String(skill.skill_name || '')).replace(/[{}"'`]/g, '').trim()
+                    }))
+                    .filter((skill: any) => skill.formattedName && !skill.formattedName.toLowerCase().includes('json') && skill.formattedName.length <= 40)
+                    .map((skill: any, idx: number) => (
+                      <span
+                        key={skill.id || idx}
+                        className="px-3.5 py-1.5 bg-slate-100 text-slate-800 rounded-xl text-xs font-bold flex items-center gap-1.5 border border-slate-200/60"
+                      >
+                        {skill.formattedName}
+                        <span className="text-[10px] text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded font-semibold uppercase">
+                          {skill.level || 'Verified'}
+                        </span>
                       </span>
-                    </span>
-                  ))}
+                    ))}
                 </div>
               ) : (
                 <p className="text-sm text-slate-500 italic">No skills recorded yet. Add skills under My Skills or upload your resume.</p>

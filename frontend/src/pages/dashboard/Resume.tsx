@@ -2,60 +2,73 @@ import { useState, useRef } from 'react';
 import { useStore } from '../../store/useStore';
 import { FileText, Download, UploadCloud, Trash2 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
+import { apiUrl } from '../../lib/api';
 
 export default function Resume() {
   const user = useStore(state => state.user);
   const setUser = useStore(state => state.setUser);
   const [uploading, setUploading] = useState(false);
-  const [isDeleted, setIsDeleted] = useState(false);
-  const [mockScore, setMockScore] = useState<number | null>(null);
-  const [mockDate, setMockDate] = useState<string | null>(null);
-  const [mockFileName, setMockFileName] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      setUploading(true);
-      setMockFileName(file.name);
-      // Simulate an upload and AI parsing delay
-      setTimeout(() => {
-        setUploading(false);
-        setIsDeleted(false);
-        setMockScore(92); // Fake new ATS score
-        setMockDate(new Date().toLocaleDateString());
-        
-        // Automatically extract skills and add to user profile
-        const extractedSkills = [
-          { skill_name: 'Docker (Extracted)', category: 'Technical', level: 'Intermediate', score: 75 },
-          { skill_name: 'Team Leadership', category: 'Soft', level: 'Advanced', score: 85 }
-        ];
-        
-        if (user) {
-          setUser({
-            ...user,
-            skills: [...(user.skills || []), ...extractedSkills]
-          });
-          toast.success("Extracted 2 new skills from your resume and added them to your profile!");
-        }
-        
-        toast.success("Resume uploaded and analyzed successfully! New ATS Score: 92%");
-      }, 2500);
-    }
-  };
-
-  const handleDelete = () => {
-    if (window.confirm("Are you sure you want to delete your resume?")) {
-      setIsDeleted(true);
-      setMockScore(null);
-      setMockDate(null);
-      setMockFileName(null);
-    }
-  };
-
   if (!user) return null;
 
   const latestResume = user.resumes?.[0];
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append('resume', file);
+      formData.append('userId', user.id);
+
+      const res = await fetch(apiUrl('/api/resume/upload'), {
+        method: 'POST',
+        body: formData
+      });
+
+      const data = await res.json();
+      if (res.ok) {
+        setUser(data);
+        toast.success("Resume uploaded & analyzed successfully! Skills extracted to your profile.");
+      } else {
+        toast.error(data.error || "Failed to upload resume.");
+      }
+    } catch (err) {
+      console.error(err);
+      toast.error("Error uploading resume.");
+    } finally {
+      setUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!latestResume) return;
+    if (window.confirm("Are you sure you want to delete your resume and remove extracted skills?")) {
+      setUploading(true);
+      try {
+        const res = await fetch(apiUrl(`/api/resume/${latestResume.id}`), {
+          method: 'DELETE'
+        });
+
+        const data = await res.json();
+        if (res.ok) {
+          setUser(data);
+          toast.success("Resume deleted and extracted skills cleaned up.");
+        } else {
+          toast.error(data.error || "Failed to delete resume.");
+        }
+      } catch (err) {
+        console.error(err);
+        toast.error("Error deleting resume.");
+      } finally {
+        setUploading(false);
+      }
+    }
+  };
 
   return (
     <div className="max-w-4xl mx-auto space-y-8 pb-20">
@@ -78,41 +91,41 @@ export default function Resume() {
           <div className="flex-1 space-y-6">
             <div>
               <div className="flex justify-between items-center mb-2">
-                <h2 className="text-2xl font-bold text-slate-900 line-clamp-1" title={mockFileName || "Primary Resume"}>
-                  {mockFileName || "Primary Resume"}
+                <h2 className="text-2xl font-bold text-slate-900 line-clamp-1" title={latestResume ? (latestResume.file_url || "Primary Resume.pdf") : "Primary Resume"}>
+                  {latestResume ? (latestResume.file_url || "Primary Resume.pdf") : "No Resume Uploaded"}
                 </h2>
-                {!isDeleted && (
+                {latestResume && (
                   <span className="px-3 py-1 bg-emerald-50 text-emerald-700 font-bold rounded-full text-sm shrink-0 ml-4">
-                    ATS Score: {mockScore !== null ? mockScore : (latestResume?.resume_score || 85)}%
+                    ATS Score: {latestResume.resume_score || 85}%
                   </span>
                 )}
               </div>
               <p className="text-sm text-slate-500">
-                {isDeleted ? (
-                  "No resume uploaded."
+                {latestResume ? (
+                  `Last updated: ${new Date(latestResume.createdAt).toLocaleDateString()}`
                 ) : (
-                  `Last updated: ${mockDate !== null ? mockDate : (latestResume ? new Date(latestResume.createdAt).toLocaleDateString() : 'Just now')}`
+                  "Upload your resume to extract skills and calculate ATS score."
                 )}
               </p>
             </div>
             
-            {!isDeleted ? (
+            {latestResume ? (
               <div>
-                <h3 className="font-semibold text-slate-900 mb-3">AI Suggestions</h3>
+                <h3 className="font-semibold text-slate-900 mb-3">AI Suggestions & Extracted Skills</h3>
                 <ul className="space-y-3">
                   <li className="flex gap-3 text-slate-600 text-sm">
                     <div className="w-1.5 h-1.5 rounded-full bg-amber-500 mt-1.5 shrink-0" />
-                    Add more quantifiable metrics to your recent experience (e.g. "Increased performance by X%").
+                    Add quantifiable metrics to your work experience sections (e.g. "Improved performance by 30%").
                   </li>
                   <li className="flex gap-3 text-slate-600 text-sm">
                     <div className="w-1.5 h-1.5 rounded-full bg-blue-500 mt-1.5 shrink-0" />
-                    Include the keyword "Docker" since it's highly requested for your target role.
+                    Verified skills are automatically extracted and synced with your <strong>My Skills</strong> profile.
                   </li>
                 </ul>
               </div>
             ) : (
-              <div className="py-4 text-slate-500">
-                Upload a resume to get AI-powered feedback and ATS scoring.
+              <div className="py-4 text-slate-500 text-sm">
+                Upload a PDF resume to instantly extract your technical and soft skills, calculate your ATS score, and boost your recommendations.
               </div>
             )}
             
@@ -130,13 +143,13 @@ export default function Resume() {
                 className="flex-1 flex items-center justify-center gap-2 bg-blue-50 hover:bg-blue-100 text-blue-700 py-3 rounded-xl font-semibold transition-colors disabled:opacity-70"
               >
                 {uploading ? (
-                  <>Uploading & Analyzing...</>
+                  <>Processing Resume...</>
                 ) : (
-                  <><UploadCloud className="w-5 h-5" /> {isDeleted ? 'Upload Resume' : 'Upload New Version'}</>
+                  <><UploadCloud className="w-5 h-5" /> {latestResume ? 'Upload New Version' : 'Upload Resume'}</>
                 )}
               </button>
 
-              {!isDeleted && (
+              {latestResume && (
                 <button 
                   onClick={handleDelete}
                   disabled={uploading}

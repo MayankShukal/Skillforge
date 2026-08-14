@@ -96,8 +96,9 @@ const userInclude = {
 
 app.post('/api/auth/register', async (req, res) => {
   const { name, email, password } = req.body;
+  console.log("--> Received Register request:", { name, email });
   if (!name || !email || !password) {
-    return res.status(400).json({ error: "Missing required fields" });
+    return res.status(400).json({ error: "Missing required fields (name, email, or password)" });
   }
 
   try {
@@ -114,7 +115,8 @@ app.post('/api/auth/register', async (req, res) => {
     });
 
     if (existingUser) {
-      return res.status(400).json({ error: "User already exists with this email" });
+      console.log("--> Register failed: User already exists:", cleanEmail);
+      return res.status(400).json({ error: "User already exists with this email address. Please sign in instead." });
     }
 
     const passwordHash = await bcrypt.hash(password, 10);
@@ -124,6 +126,7 @@ app.post('/api/auth/register', async (req, res) => {
     });
 
     const token = jwt.sign({ userId: user.id }, JWT_SECRET, { expiresIn: '7d' });
+    console.log("--> Register successful for:", cleanEmail);
     res.status(201).json({ user, token });
   } catch (error: any) {
     console.error("Registration error:", error);
@@ -133,8 +136,9 @@ app.post('/api/auth/register', async (req, res) => {
 
 app.post('/api/auth/login', async (req, res) => {
   const { email, password } = req.body;
+  console.log("--> Received Login request for email:", email);
   if (!email || !password) {
-    return res.status(400).json({ error: "Missing required fields" });
+    return res.status(400).json({ error: "Missing required email or password fields." });
   }
 
   try {
@@ -152,7 +156,8 @@ app.post('/api/auth/login', async (req, res) => {
     });
 
     if (!user || !user.passwordHash) {
-      return res.status(401).json({ error: "Invalid email or password" });
+      console.log("--> Login failed: User not found for email:", cleanEmail);
+      return res.status(401).json({ error: "No account found with this email address. Please create an account." });
     }
 
     let isValid = false;
@@ -178,10 +183,12 @@ app.post('/api/auth/login', async (req, res) => {
     }
 
     if (!isValid) {
-      return res.status(401).json({ error: "Invalid email or password" });
+      console.log("--> Login failed: Incorrect password for email:", cleanEmail);
+      return res.status(401).json({ error: "Incorrect password. Please try again." });
     }
 
     const token = jwt.sign({ userId: user.id }, JWT_SECRET, { expiresIn: '7d' });
+    console.log("--> Login successful for email:", cleanEmail);
     res.json({ user, token });
   } catch (error: any) {
     console.error("Login error:", error);

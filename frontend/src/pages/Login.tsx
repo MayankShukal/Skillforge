@@ -62,7 +62,14 @@ export default function Login({ initialMode = 'login' }: LoginProps) {
       }
     } catch (error: any) {
       console.error("Auth error", error);
-      const msg = error.response?.data?.error || (mode === 'register' ? 'Registration failed' : 'Invalid email or password');
+      let msg = error.response?.data?.error;
+      if (!msg) {
+        if (!error.response) {
+          msg = `Cannot connect to backend server at ${apiUrl('')}. Please start backend server on port 5000.`;
+        } else {
+          msg = mode === 'register' ? 'Registration failed' : 'Invalid email or password';
+        }
+      }
       toast.error(msg);
       setLoading(false);
     }

@@ -65,7 +65,7 @@ const upload = multer({ dest: uploadDir });
 const prisma = new PrismaClient();
 
 const app = express();
-const PORT = process.env.PORT || 5000;
+const PORT = Number(process.env.PORT) || 5000;
 
 app.use(cors({
   origin: true,

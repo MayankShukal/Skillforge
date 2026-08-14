@@ -5,9 +5,10 @@
   "main": "index.js",
   "scripts": {
     "dev": "tsx watch index.ts",
-    "build": "tsc",
+    "postinstall": "prisma generate",
+    "build": "prisma generate && tsc",
     "start": "node dist/index.js",
-    "seed": "node seed2.js && node addExtraCourses.js",
+    "seed": "node -r dotenv/config seed2.js && node -r dotenv/config addExtraCourses.js",
     "prisma:deploy": "prisma migrate deploy"
   },
   "keywords": [],
